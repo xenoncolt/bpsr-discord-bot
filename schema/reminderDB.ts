@@ -14,6 +14,7 @@ export async function createReminderDB() {
         CREATE TABLE IF NOT EXISTS reminder_list (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             event_id TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
             channel_id TEXT NOT NULL,
             role_id TEXT,
             custom_description TEXT

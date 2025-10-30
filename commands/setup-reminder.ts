@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionType, AutocompleteInteraction, ChannelType, ChatInputCommandInteraction, LabelBuilder, ModalBuilder, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ApplicationCommandOptionType, AutocompleteInteraction, ChannelSelectMenuBuilder, ChannelType, ChatInputCommandInteraction, LabelBuilder, MessageFlags, ModalBuilder, NewsChannel, RoleSelectMenuBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
 import axios, {  } from "axios";
 import config from "../config.json" with { type: "json" };
 import { Event } from "../types/bpsrEvents.js";
@@ -6,6 +6,8 @@ import { Command } from "../types/Command.js";
 import { createReminderDB } from "../schema/reminderDB.js";
 
 const reminderDB = await createReminderDB();
+
+let eventId: string;
 
 export default {
     name: "setup-reminder",
@@ -18,50 +20,120 @@ export default {
             required: true,
             autocomplete: true,
         },
-        {
-            type: ApplicationCommandOptionType.Channel,
-            name: "channel",
-            description: "The channel to send the reminder in",
-            required: true,
-            channel_types: ChannelType.GuildText | ChannelType.GuildAnnouncement,
-        },
-        {
-            type: ApplicationCommandOptionType.Role,
-            name: "role",
-            description: "The role to mention when sending the reminder",
-            required: false,
-        },
-        {
-            type: ApplicationCommandOptionType.Boolean,
-            name: "custom_description",
-            description: "Whether to use a custom description for the reminder",
-            required: false,
-        }
+    //     {
+    //         type: ApplicationCommandOptionType.Channel,
+    //         name: "channel",
+    //         description: "The channel to send the reminder in",
+    //         required: true,
+    //         channel_types: ChannelType.GuildText | ChannelType.GuildAnnouncement,
+    //     },
+    //     {
+    //         type: ApplicationCommandOptionType.Role,
+    //         name: "role",
+    //         description: "The role to mention when sending the reminder",
+    //         required: false,
+    //     },
+    //     {
+    //         type: ApplicationCommandOptionType.Boolean,
+    //         name: "custom_description",
+    //         description: "Whether to use a custom description for the reminder",
+    //         required: false,
+    //     }
     ],
     async execute(interaction: ChatInputCommandInteraction) : Promise<void> {
-        const eventId = interaction.options.getString('event_id');
-        const channel = interaction.options.getChannel('channel');
-        const role = interaction.options.getRole('role');
-        const isDesc = interaction.options.getBoolean('custom_description');
+        eventId = interaction.options.getString('event_id') as string;
+        // const channel = interaction.options.getChannel('channel');
+        // const role = interaction.options.getRole('role');
+        // const isDesc = interaction.options.getBoolean('custom_description');
 
-        if (isDesc) {
-            const modal = new ModalBuilder()
-            .setCustomId('event_desc')
-            .setTitle('Custom Event Description')
+        // if (isDesc) {
+        //     const modal = new ModalBuilder()
+        //     .setCustomId('event_desc')
+        //     .setTitle('Custom Event Description')
+        //     .addLabelComponents(
+        //         new LabelBuilder()
+        //             .setLabel('Write your custom description for the event reminder:')
+        //             .setTextInputComponent(
+        //                 new TextInputBuilder()
+        //                     .setCustomId(`cus_desc`)
+        //                     .setPlaceholder('Enter your custom description here')
+        //                     .setRequired(isDesc ? true : false)
+        //                     .setStyle(TextInputStyle.Paragraph)
+        //             )
+        //     );
+
+        //     await interaction.showModal(modal);
+        // }
+
+        // const response = await axios.get(config.api_url);
+        // const events_list: Event[] = response.data.events;
+
+        // const DB_event_id = await reminderDB.get(`SELECT * FROM reminder_list WHERE event_id = ?`, eventId);
+        // if (DB_event_id) {
+        //     await interaction.reply({ content: ``})
+        // }
+
+        const modal = new ModalBuilder()
+            .setCustomId('setup-reminder')
+            .setTitle('Setup Reminder')
+            // .addLabelComponents(
+            //     new LabelBuilder()
+            //         .setLabel('Select a Event:')
+            //         .setDescription('You can type to search for event. Here only 25 results are shown')
+            //         .setStringSelectMenuComponent(
+            //             new StringSelectMenuBuilder()
+            //                 .setCustomId('event_id')
+            //                 .setPlaceholder('Select an event...')
+            //                 .setRequired(true)
+            //                 .setMinValues(1)
+            //                 .setMaxValues(2)
+            //                 .addOptions(
+            //                     events_list.slice(0, 25).map( ev =>
+            //                         new StringSelectMenuOptionBuilder()
+            //                             .setLabel(ev.name)
+            //                             .setValue(ev.id)
+            //                             .setDescription(ev.description.length > 50 ? ev.description.substring(0, 47) + '...' : ev.description)
+            //                     )
+            //                 )
+            //         )
+            // )
             .addLabelComponents(
                 new LabelBuilder()
-                    .setLabel('Write your custom description for the event reminder:')
+                    .setLabel('Select a channel to send notice:')
+                    .setChannelSelectMenuComponent(
+                        new ChannelSelectMenuBuilder()
+                            .setCustomId('rem_channel')
+                            // .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                            .setChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+                            .setPlaceholder('Select a channel...')
+                            .setRequired(true)
+                    )
+            )
+            .addLabelComponents(
+                new LabelBuilder()
+                    .setLabel('Select roles:')
+                    .setDescription('Select roles to mention them when sending the reminder (optional)')
+                    .setRoleSelectMenuComponent(
+                        new RoleSelectMenuBuilder()
+                            .setCustomId('rem_role')
+                            .setRequired(false)
+                            .setPlaceholder('Select roles...')
+                    )
+            )
+            .addLabelComponents(
+                new LabelBuilder()
+                    .setLabel('Custom description:')
+                    .setDescription('Write your custom description for the event reminder (optional)')
                     .setTextInputComponent(
                         new TextInputBuilder()
-                            .setCustomId(`cus_desc`)
+                            .setCustomId('cus_desc')
                             .setPlaceholder('Enter your custom description here')
-                            .setRequired(isDesc ? true : false)
+                            .setRequired(false)
                             .setStyle(TextInputStyle.Paragraph)
                     )
-            );
+            )
 
             await interaction.showModal(modal);
-        }
     },
     async autocomplete(interaction: AutocompleteInteraction) {
         const focused_option = interaction.options.getFocused(true);
@@ -82,9 +154,23 @@ export default {
             }))
         );
     },
-    async modalSubmit(interaction){
+    async modalSubmit(interaction) {
+        const rem_channel = interaction.fields.getSelectedChannels('rem_channel')?.first();
+        const rem_roles = interaction.fields.getSelectedRoles('rem_role');
         const custom_desc = interaction.fields.getTextInputValue('cus_desc');
 
+        let filtered_roles;
+        if (rem_roles && rem_roles.size > 1) {
+            filtered_roles = Array.from(rem_roles.values()).map(role => `<@&${role?.id}>`).join(',');
+        } else {
+            filtered_roles = rem_roles?.first() ? `<@&${rem_roles?.first()?.id}>` : null;
+        }
 
+        await reminderDB.run(`
+            INSERT INTO reminder_list (event_id, guild_id, channel_id, role_id, custom_description) VALUES (?, ?, ?, ?, ?)`, 
+            eventId, interaction.guild?.id, rem_channel?.id, filtered_roles, custom_desc ? custom_desc : null
+        );
+
+        await interaction.reply({ content: `Reminder has been set up for event **${eventId}** in channel ${rem_channel} ${filtered_roles ? `mentioning roles: ${filtered_roles}` : ``} ${custom_desc ? `with custom description: ${custom_desc}` : ``}`, flags: MessageFlags.Ephemeral});
     }
 } as Command;
