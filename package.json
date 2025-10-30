@@ -1,0 +1,37 @@
+{
+  "name": "bpsr-discord-bot",
+  "version": "1.0.0",
+  "description": "A BPSR discord bot to remind players about events guild hunts etc",
+  "homepage": "https://github.com/xenoncolt/bpsr-discord-bot#readme",
+  "bugs": {
+    "url": "https://github.com/xenoncolt/bpsr-discord-bot/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/xenoncolt/bpsr-discord-bot.git"
+  },
+  "license": "ISC",
+  "author": "Xenon Colt",
+  "type": "module",
+  "main": "index.js",
+  "scripts": {
+    "dev": "tsx watch index.ts",
+    "build": "tsc",
+    "start": "node build/index.js"
+  },
+  "dependencies": {
+    "axios": "^1.13.1",
+    "discord.js": "^14.24.0",
+    "dotenv": "^17.2.3",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7",
+    "systeminformation": "^5.27.11"
+  },
+  "devDependencies": {
+    "@types/node": "^24.9.1",
+    "ts-node-dev": "^2.0.0",
+    "tslib": "^2.8.1",
+    "tsx": "^4.20.6",
+    "typescript": "^5.9.3"
+  }
+}

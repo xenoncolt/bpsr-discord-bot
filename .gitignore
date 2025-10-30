@@ -1,0 +1,6 @@
+build
+node_modules
+config.json
+.env
+package-lock.json
+/database
