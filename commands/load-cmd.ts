@@ -1,7 +1,7 @@
 import { ChatInputCommandInteraction, Client, Events, MessageFlags } from "discord.js";
 import config from "../config.json" with { type: "json" };
-import { loadCommands, registerSlashCommands } from "../handler/slashCommandHandler";
-import { ExtendedClient } from "../types/ExtendedClient";
+import { loadCommands, registerSlashCommands } from "../handler/slashCommandHandler.js";
+import { ExtendedClient } from "../types/ExtendedClient.js";
 
 export default {
     name: 'load-cmd',

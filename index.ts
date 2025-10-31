@@ -5,6 +5,7 @@ import { ExtendedClient } from "./types/ExtendedClient.js";
 import { Command } from "./types/Command.js";
 import { loadCommands, registerSlashCommands } from "./handler/slashCommandHandler.js";
 import { loadEvents } from "./handler/eventHandler.js";
+import { stReminder } from "./utils/eventApi.js";
 
 const client = new Client({
     intents: [
@@ -20,6 +21,7 @@ client.commands = new Collection<string, Command>();
 
 loadCommands(client);
 loadEvents(client);
+stReminder(client);
 
 client.once(Events.ClientReady, async () => {
     console.log(`Loading slash cmds for ${client.user?.tag}`);

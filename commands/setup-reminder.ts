@@ -1,4 +1,4 @@
-import { ApplicationCommandOptionType, AutocompleteInteraction, ChannelSelectMenuBuilder, ChannelType, ChatInputCommandInteraction, LabelBuilder, MessageFlags, ModalBuilder, NewsChannel, RoleSelectMenuBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
+import { ApplicationCommandOptionType, AutocompleteInteraction, ChannelSelectMenuBuilder, ChannelType, ChatInputCommandInteraction, GuildMember, LabelBuilder, MessageFlags, ModalBuilder, NewsChannel, PermissionFlagsBits, RoleSelectMenuBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, TextChannel, TextInputBuilder, TextInputStyle } from "discord.js";
 import axios, {  } from "axios";
 import config from "../config.json" with { type: "json" };
 import { Event } from "../types/bpsrEvents.js";
@@ -42,6 +42,12 @@ export default {
     ],
     async execute(interaction: ChatInputCommandInteraction) : Promise<void> {
         eventId = interaction.options.getString('event_id') as string;
+        const member = interaction.member as GuildMember;
+
+        if (!member.permissions.has([PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageChannels])) {
+            await interaction.editReply("You don't have enough permission to use this command. You need to have 'Administrator' or 'Manage Channels' permission.");
+            return;
+        }
         // const channel = interaction.options.getChannel('channel');
         // const role = interaction.options.getRole('role');
         // const isDesc = interaction.options.getBoolean('custom_description');
@@ -122,12 +128,12 @@ export default {
             )
             .addLabelComponents(
                 new LabelBuilder()
-                    .setLabel('Custom description:')
-                    .setDescription('Write your custom description for the event reminder (optional)')
+                    .setLabel('Custom Message:')
+                    .setDescription('Write your custom Message for the event reminder (optional)')
                     .setTextInputComponent(
                         new TextInputBuilder()
                             .setCustomId('cus_desc')
-                            .setPlaceholder('Enter your custom description here')
+                            .setPlaceholder('Enter your custom Message here')
                             .setRequired(false)
                             .setStyle(TextInputStyle.Paragraph)
                     )
