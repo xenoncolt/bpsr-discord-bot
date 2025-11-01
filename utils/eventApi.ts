@@ -7,7 +7,7 @@ import axios from "axios";
 import config from "../config.json" with { type: "json" };
 
 const CHECK_INTERVAL = 60 * 1000;
-const EVENT_WINDOW = 5 * 60;
+const EVENT_WINDOW = 50 * 60;
 const CACHE_FILE = join(process.cwd(), 'database', 'reminder_cache.json');
 const IMG_FOLDER = join(process.cwd(), 'img');
 
@@ -193,7 +193,8 @@ async function sendEventNotice(client: Client, reminder: ReminderDbStruct, event
 
         if (event_img) {
             const img_name = `${event.id}.png`;
-            attachment = [new AttachmentBuilder(event_img, { name: img_name })];
+            const img_path = join(IMG_FOLDER, event_img);
+            attachment = [new AttachmentBuilder(img_path, { name: img_name })];
 
             container.addMediaGalleryComponents(
                 new MediaGalleryBuilder()
