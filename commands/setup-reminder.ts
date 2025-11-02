@@ -165,6 +165,13 @@ export default {
         const rem_roles = interaction.fields.getSelectedRoles('rem_role');
         const custom_desc = interaction.fields.getTextInputValue('cus_desc');
 
+        // bot user member.self
+        const bot = interaction.guild?.members.me;
+
+        if (bot && !bot.permissionsIn(rem_channel as TextChannel | NewsChannel).has([[PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ViewChannel, PermissionFlagsBits.UseExternalEmojis]])) {
+            await interaction.reply({ content: `I don't have enough permission to send messages in ${rem_channel}. Please make sure I have 'View Channel', 'Send Messages', 'Embed Links', 'Attach Files' and 'Use External Emojis' permissions in that channel.`, flags: MessageFlags.Ephemeral});
+        }
+        
         let filtered_roles;
         if (rem_roles && rem_roles.size > 1) {
             filtered_roles = Array.from(rem_roles.values()).map(role => `<@&${role?.id}>`).join(',');
