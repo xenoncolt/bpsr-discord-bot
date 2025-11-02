@@ -172,8 +172,15 @@ async function sendEventNotice(client: Client, reminder: ReminderDbStruct, event
 
         container.addTextDisplayComponents(
             new TextDisplayBuilder()
-                .setContent(`**📅 Day:** ${day[eventDay]}  \n**⏰ Time:** <t:${eventTime}:t>  \n**🕒 Ends:** <t:${eventEnd}:R>`)
+                .setContent(`**📅 Day:** **${day[eventDay]}**  \n**⏰ Time:** <t:${eventTime}:t>  \n**🕒 Ends:** <t:${eventEnd}:R>`)
         )
+
+        if (reminder.role_id) {
+            container.addTextDisplayComponents(
+                new TextDisplayBuilder()
+                    .setContent(reminder.role_id)
+            )
+        }
 
         container.addSeparatorComponents(
             new SeparatorBuilder()
