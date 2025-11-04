@@ -21,14 +21,14 @@
   },
   "dependencies": {
     "axios": "^1.13.1",
-    "discord.js": "^14.24.0",
+    "discord.js": "14.24.2",
     "dotenv": "^17.2.3",
     "sqlite": "^5.1.1",
     "sqlite3": "^5.1.7",
     "systeminformation": "^5.27.11"
   },
   "devDependencies": {
-    "@types/node": "^24.9.1",
+    "@types/node": "24.10.0",
     "ts-node-dev": "^2.0.0",
     "tslib": "^2.8.1",
     "tsx": "^4.20.6",
