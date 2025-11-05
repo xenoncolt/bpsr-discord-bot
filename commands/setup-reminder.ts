@@ -45,7 +45,7 @@ export default {
         const member = interaction.member as GuildMember;
 
         if (!member.permissions.has([PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageChannels])) {
-            await interaction.editReply("You don't have enough permission to use this command. You need to have 'Administrator' or 'Manage Channels' permission.");
+            await interaction.reply("You don't have enough permission to use this command. You need to have 'Administrator' or 'Manage Channels' permission.");
             return;
         }
         // const channel = interaction.options.getChannel('channel');

@@ -5,20 +5,14 @@ import { createReminderDB } from "../schema/reminderDB.js";
 import { Event, Events } from "../types/bpsrEvents.js";
 import axios from "axios";
 import config from "../config.json" with { type: "json" };
+import { ReminderDbStruct } from "../types/dbStruct.js";
 
 const CHECK_INTERVAL = 60 * 1000;
 const EVENT_WINDOW = 50 * 60;
 const CACHE_FILE = join(process.cwd(), 'database', 'reminder_cache.json');
 const IMG_FOLDER = join(process.cwd(), 'img');
 
-interface ReminderDbStruct {
-    id: number;
-    event_id: string;
-    guild_id: string;
-    channel_id: string;
-    role_id?: string;
-    custom_description?: string;
-}
+
 
 let sentNotice = new Set<string>();
 
@@ -188,12 +182,17 @@ async function sendEventNotice(client: Client, reminder: ReminderDbStruct, event
                 .setSpacing(SeparatorSpacingSize.Small)
         );
 
-        if (event.description) {
-            container.addTextDisplayComponents(
+        // if (event.description) {
+        //     container.addTextDisplayComponents(
+        //     new TextDisplayBuilder()
+        //         .setContent(event.description)
+        // );
+        // }
+
+        container.addTextDisplayComponents(
             new TextDisplayBuilder()
-                .setContent(event.description)
-        );
-        }
+                .setContent(reminder.custom_description || event.description)
+        )
 
         const event_img = findEventImg(event.id);
         let attachment: AttachmentBuilder[] = [];

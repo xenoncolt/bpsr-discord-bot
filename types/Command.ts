@@ -1,10 +1,10 @@
-import { AutocompleteInteraction, Client, Interaction, ModalSubmitInteraction } from "discord.js";
+import { AutocompleteInteraction, ChatInputCommandInteraction, Client, Interaction, ModalSubmitInteraction } from "discord.js";
 
 export interface Command {
     name: string;
     description: string;
     options?: any[];
-    execute: (interaction: Interaction, client: Client) => Promise<void>;
+    execute: (interaction: ChatInputCommandInteraction, client: Client) => Promise<void>;
     autocomplete?: (interaction: AutocompleteInteraction, client: Client) => Promise<void>;
     modalSubmit?: (interaction: ModalSubmitInteraction, client: Client) => Promise<void>;
 }
