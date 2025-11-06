@@ -146,16 +146,16 @@ async function sendEventNotice(client: Client, reminder: ReminderDbStruct, event
 
         const container = new ContainerBuilder();
 
-        const title: string[] = [
-            `# 😼 ${event.name} Time! :3😼`,
-            `# 🌸 Its ${event.name} Time 🌟`,
-            `# 🐱 ${event.name} Mrr... Lets Go...`,
-            `# 😽 ${event.name} time... come.. play.. nya.. 🎀`
-        ]
+        // const title: string[] = [
+        //     `# 😼 ${event.name} Time! :3😼`,
+        //     `# 🌸 Its ${event.name} Time 🌟`,
+        //     `# 🐱 ${event.name} Mrr... Lets Go...`,
+        //     `# 😽 ${event.name} time... come.. play.. nya.. 🎀`
+        // ]
 
         container.addTextDisplayComponents(
             new TextDisplayBuilder()
-                .setContent(title[Math.floor(Math.random() * title.length)])
+                .setContent(`# ${event.name} is happening now!`)
         );
         
         container.addSeparatorComponents(
