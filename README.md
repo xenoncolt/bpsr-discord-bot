@@ -5,3 +5,4 @@
 - [ ] Add Game planner
 - [ ] Boss spawn location
 - [ ] Slash command for how much time is left for specific boss spawn
+- [ ] Add leaderboard if someone provide me api
