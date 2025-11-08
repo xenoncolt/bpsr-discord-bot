@@ -6,6 +6,7 @@ import { Command } from "./types/Command.js";
 import { loadCommands, registerSlashCommands } from "./handler/slashCommandHandler.js";
 import { loadEvents } from "./handler/eventHandler.js";
 import { stReminder } from "./utils/eventApi.js";
+import { initBossTracker, stopBossTracking } from "./utils/bossTracker.js";
 
 const client = new Client({
     intents: [
@@ -26,6 +27,7 @@ stReminder(client);
 client.once(Events.ClientReady, async () => {
     console.log(`Loading slash cmds for ${client.user?.tag}`);
     await registerSlashCommands(client);
+    await initBossTracker();
 });
 
 client.on(Events.Debug, (info) => {
@@ -35,5 +37,10 @@ client.on(Events.Debug, (info) => {
 client.on(Events.Error, (err) => {
     console.error(err);
 });
+
+process.on('SIGINT', () => {
+    stopBossTracking();
+    process.exit();
+})
 
 client.login(process.env.TOKEN);

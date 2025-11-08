@@ -3,6 +3,8 @@ import { ExtendedClient } from "../../types/ExtendedClient.js";
 import {  } from "fs";
 import config from "../../config.json" with { type: "json" };
 
+const cooldowns: Map<string, Map<string, number>> = new Map();
+
 export default {
     name: Events.InteractionCreate,
     once: false,
@@ -12,6 +14,29 @@ export default {
         if (interaction.isChatInputCommand()) {
             const cmd = client.commands.get(interaction.commandName);
             if (!cmd) return;
+
+            if (cmd.cooldown) {
+                if (!cooldowns.has(cmd.name)) {
+                    cooldowns.set(cmd.name, new Map());
+                }
+
+                const now = Date.now();
+                const cd = cooldowns.get(cmd.name)!;
+                const cd_amount = cmd.cooldown * 1000;
+
+                if (cd.has(interaction.user.id)) {
+                    const expire_time = cd.get(interaction.user.id)! + cd_amount;
+
+                    if (now < expire_time) {
+                        const time_left = (expire_time - now) / 1000;
+                        await interaction.reply({ content: `Hold on! You are way too fast! Though I am bot still need time to catch up. Please give me ${time_left.toFixed(1)}s break.`, flags: MessageFlags.Ephemeral });
+                        return;
+                    }
+                }
+                
+                cd.set(interaction.user.id, now);
+                setTimeout(() => cd.delete(interaction.user.id), cd_amount);
+            }
 
             try {
                 await cmd.execute(interaction, client);

@@ -4,6 +4,7 @@ export interface Command {
     name: string;
     description: string;
     options?: any[];
+    cooldown?: number;
     execute: (interaction: ChatInputCommandInteraction, client: Client) => Promise<void>;
     autocomplete?: (interaction: AutocompleteInteraction, client: Client) => Promise<void>;
     modalSubmit?: (interaction: ModalSubmitInteraction, client: Client) => Promise<void>;
