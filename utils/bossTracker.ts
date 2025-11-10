@@ -36,7 +36,7 @@ async function subsToApi() {
 
         if (e.action === 'create' || e.action === 'update') {
             mob_channel_cache.set(mobChannel.id, mobChannel);
-            console.log(`Mob Channel updated: ${mobChannel.collectionName} (${mobChannel.id})`);
+            // console.log(`Mob Channel updated: ${mobChannel.collectionName} (${mobChannel.id})`);
         } else if (e.action === 'delete') {
             mob_channel_cache.delete(mobChannel.id);
         }
