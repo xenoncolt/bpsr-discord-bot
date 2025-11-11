@@ -44,6 +44,13 @@ export default {
         eventId = interaction.options.getString('event_id') as string;
         const member = interaction.member as GuildMember;
 
+        const guild_id = interaction.guild?.id;
+
+        if (!guild_id) {
+            await interaction.reply({ content: "This command can only be used in a server.", flags: MessageFlags.Ephemeral});
+            return;
+        }
+
         if (!member.permissions.has([PermissionFlagsBits.Administrator, PermissionFlagsBits.ManageChannels])) {
             await interaction.reply("You don't have enough permission to use this command. You need to have 'Administrator' or 'Manage Channels' permission.");
             return;
@@ -170,6 +177,7 @@ export default {
 
         if (bot && !bot.permissionsIn(rem_channel as TextChannel | NewsChannel).has([[PermissionFlagsBits.SendMessages, PermissionFlagsBits.EmbedLinks, PermissionFlagsBits.AttachFiles, PermissionFlagsBits.ViewChannel, PermissionFlagsBits.UseExternalEmojis]])) {
             await interaction.reply({ content: `I don't have enough permission to send messages in ${rem_channel}. Please make sure I have 'View Channel', 'Send Messages', 'Embed Links', 'Attach Files' and 'Use External Emojis' permissions in that channel.`, flags: MessageFlags.Ephemeral});
+            return;
         }
         
         let filtered_roles;

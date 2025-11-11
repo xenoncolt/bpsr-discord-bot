@@ -3,7 +3,7 @@ import { EventSource } from 'eventsource';
 import config from "../config.json" with { type: "json" };
 import { BossHpReminder, Mob, MobChannel } from '../types/bossData.js';
 import { createBossReminderDB } from '../schema/reminderDB.js';
-import { Client, ContainerBuilder, Message, MessageFlags, NewsChannel, SeparatorBuilder, SeparatorSpacingSize, TextChannel, TextDisplayBuilder } from 'discord.js';
+import { Client, ContainerBuilder, GuildMember, Message, MessageFlags, NewsChannel, SeparatorBuilder, SeparatorSpacingSize, TextChannel, TextDisplayBuilder } from 'discord.js';
 
 global.EventSource = EventSource;
 
@@ -208,13 +208,13 @@ async function sendHpReminder(reminder: BossHpReminder, mob: Mob, mob_line: MobC
             return;
         }
 
-        const role_mention = reminder.role_id ? ` ${reminder.role_id}` : '';
+        const role_mention = reminder.role_id ? ` ${reminder.role_id} - ` : '';
         const hp_bar = generateHpBar(mob_line.last_hp);
 
         const container = new ContainerBuilder();
         container.addTextDisplayComponents(
             new TextDisplayBuilder()
-                .setContent(`### ${role_mention} - ${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`)
+                .setContent(`${role_mention}${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`)
         )
         container.addSeparatorComponents(
             new SeparatorBuilder()
@@ -223,7 +223,7 @@ async function sendHpReminder(reminder: BossHpReminder, mob: Mob, mob_line: MobC
         )
         container.addTextDisplayComponents(
             new TextDisplayBuilder()
-                .setContent(`## HP: ${hp_bar}`)
+                .setContent(`HP: ${hp_bar}`)
         )
         container.addSeparatorComponents(
             new SeparatorBuilder()
@@ -250,18 +250,18 @@ async function sendHpReminder(reminder: BossHpReminder, mob: Mob, mob_line: MobC
 
 async function updateMsg(msg: Message, reminder: BossHpReminder, mob: Mob, mob_line: MobChannel, dead: boolean = false) {
     try {
-        const role_mention = reminder.role_id ? ` ${reminder.role_id}` : '';
+        const role_mention = reminder.role_id ? ` ${reminder.role_id} - ` : '';
         const hp_bar = generateHpBar(mob_line.last_hp);
         
         let header_content: string;
         let hp_bar_content : string;
 
         if (dead) {
-            header_content = `### ${role_mention} - ${mob.name} - Line ${mob_line.channel_number} - Dead`
-            hp_bar_content = `## HP: ${hp_bar}`;
+            header_content = `${role_mention}${mob.name} - Line ${mob_line.channel_number} - Dead`
+            hp_bar_content = `HP: ${hp_bar}`;
         } else {
-            header_content = `### ${role_mention} - ${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`;
-            hp_bar_content = `## HP: ${hp_bar}`;
+            header_content = `${role_mention}${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`;
+            hp_bar_content = `HP: ${hp_bar}`;
         }
         
         const container = new ContainerBuilder();
@@ -291,6 +291,20 @@ async function updateMsg(msg: Message, reminder: BossHpReminder, mob: Mob, mob_l
             components: [container],
             flags: [MessageFlags.IsComponentsV2]
         })
+        // wait 5 min then delete that msg if dead
+        if (dead) {
+            if (msg.deletable) {
+                setTimeout(async () => {
+                    try {
+                        await msg.delete();
+                    } catch (err) {
+                        console.error("Error deleting HP reminder message:", err);
+                    }
+                }, 2 * 60 * 1000);
+            } else {
+                msg.edit({ content: `${msg.content}\n(Note: I don't have permission to delete this message.) Please add me again to server or give me \`Manage Messages\` permission` });
+            }
+        }
     } catch (err) {
         console.error("Error updating HP reminder message:", err);
         await client.users.cache.get(config.owner)?.send(`Error updating HP reminder message for mob ${mob.name} in channel ${reminder.channel_id}: ${err}`);
@@ -298,11 +312,11 @@ async function updateMsg(msg: Message, reminder: BossHpReminder, mob: Mob, mob_l
 }
 
 function generateHpBar(hp: number): string {
-    const filled_blocks = Math.ceil((hp / 100) * 10);
-    const empty_blocks = 10 - filled_blocks;
+    const filled_blocks = Math.ceil((hp / 100) * 12);
+    const empty_blocks = 12 - filled_blocks;
     let color = '🟩';
     if (hp < 50 && hp >= 25) color = '🟨';
     if (hp < 25) color = '🟧';
-    if (hp === 0) return '🟥'.repeat(10);
+    if (hp === 0) return '🟥'.repeat(12);
     return color.repeat(filled_blocks) + '⬛'.repeat(empty_blocks);
 }
