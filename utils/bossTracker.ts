@@ -1,18 +1,28 @@
 import PocketBase from 'pocketbase';
 import { EventSource } from 'eventsource';
 import config from "../config.json" with { type: "json" };
-import { Mob, MobChannel } from '../types/bossData.js';
+import { BossHpReminder, Mob, MobChannel } from '../types/bossData.js';
+import { createBossReminderDB } from '../schema/reminderDB.js';
+import { Client, ContainerBuilder, Message, MessageFlags, NewsChannel, SeparatorBuilder, SeparatorSpacingSize, TextChannel, TextDisplayBuilder } from 'discord.js';
 
 global.EventSource = EventSource;
 
 const pb = new PocketBase(config.bptimer_api_url);
 
+let client: Client;
+
+const boss_hp_reminder_db = await createBossReminderDB();
+const sentNuke = new Set<string>();
+const hp_msg = new Map<string, Message>();
+
 let mobs_cache: Map<string, Mob> = new Map();
 let mob_channel_cache: Map<string, MobChannel> = new Map();
 
-export async function initBossTracker() {
+export async function initBossTracker(_client: Client) {
     console.log("Started Tracker...");
     
+    client = _client;
+
     try {
         const mobs = await pb.collection('mobs').getFullList<Mob>();
         mobs.forEach(mob => mobs_cache.set(mob.id, mob));
@@ -31,12 +41,18 @@ export async function initBossTracker() {
 }
 
 async function subsToApi() {
-    pb.collection('mob_channel_status').subscribe('*', (e) => {
+    pb.collection('mob_channel_status').subscribe('*', async (e) => {
         const mobChannel = e.record as MobChannel;
 
         if (e.action === 'create' || e.action === 'update') {
+            const old_status = mob_channel_cache.get(mobChannel.id);
             mob_channel_cache.set(mobChannel.id, mobChannel);
             // console.log(`Mob Channel updated: ${mobChannel.collectionName} (${mobChannel.id})`);
+
+            if (old_status && old_status.last_hp !== mobChannel.last_hp) {
+                await checkHpReminder(mobChannel, old_status);
+                // console.log(`Mob Channel HP changed: ${mobChannel.collectionName} (${mobChannel.id}) from ${old_status.last_hp}% to ${mobChannel.last_hp}%`);
+            }
         } else if (e.action === 'delete') {
             mob_channel_cache.delete(mobChannel.id);
         }
@@ -47,7 +63,7 @@ async function subsToApi() {
 
         if (e.action === 'create' || e.action === 'update') {
             mobs_cache.set(mob.id, mob);
-            console.log(`Mob updated: ${mob.name} (${mob.id})`);
+            // console.log(`Mob updated: ${mob.name} (${mob.id})`);
         } else if (e.action === 'delete') {
             mobs_cache.delete(mob.id);
         }
@@ -112,4 +128,181 @@ export async function stopBossTracking() {
     pb.collection('mob_channel_status').unsubscribe();
     pb.collection('mobs').unsubscribe();
     console.log("Unsubscribed from PocketBase collections.");
+}
+
+async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
+    try {
+        const boss_reminders = await boss_hp_reminder_db.all<BossHpReminder[]>(`
+            SELECT * FROM boss_hp_reminder WHERE mob_id = ?`, mob_line.mob
+        );
+
+        const mob = mobs_cache.get(mob_line.mob);
+
+        if (!mob) return;
+
+        for (const reminder of boss_reminders) {
+            const hp_threshold = reminder.hp_percent;
+            const current_hp = mob_line.last_hp;
+            const pre_hp = old_status.last_hp;
+
+            // console.log(reminder);
+
+            // target is:
+            // Current hp is below threshold
+            // Previous hp is above threshold
+            // new update look for hp drop and boom send nuke 
+            const nuke = current_hp < hp_threshold && current_hp > 0;
+
+            const msg_key = `${reminder.id}_${mob_line.channel_number}`;
+            const nuke_key =  `${reminder.id}_${mob_line.channel_number}_${Math.floor(current_hp / 10)}`;
+
+            if (nuke) {
+                const exist_msg = hp_msg.get(msg_key);
+
+                if (exist_msg) {
+                    await updateMsg(exist_msg, reminder, mob, mob_line);
+                    // console.log(`Updated HP reminder message for ${mob.name} in Line ${mob_line.channel_number} at ${current_hp}% HP.`);
+                } else if (!sentNuke.has(nuke_key)) {
+                    const sent_msg = await sendHpReminder(reminder, mob, mob_line);
+                    if (sent_msg) {
+                        hp_msg.set(msg_key, sent_msg);
+                    }
+                    // console.log(`Sent HP reminder for ${mob.name} in Line ${mob_line.channel_number} at ${current_hp}% HP.`);
+                    sentNuke.add(nuke_key);
+
+                    setTimeout(() => {
+                        sentNuke.delete(nuke_key);
+                    }, 5 * 60 * 1000)
+                }
+            }
+            
+            if ((current_hp === 100 && pre_hp < 100) || current_hp === 0) {
+                const exist_msg = hp_msg.get(msg_key);
+
+                if (exist_msg && current_hp === 0) {
+                    await updateMsg(exist_msg, reminder, mob, mob_line, true);
+                    // console.log(`Updated HP reminder message for ${mob.name} in Line ${mob_line.channel_number} to Dead.`);
+                }
+
+                hp_msg.delete(msg_key);
+
+                Array.from(sentNuke).forEach( key => {
+                    if (key.startsWith(`${reminder.id}_${mob_line.channel_number}_`)) {
+                        sentNuke.delete(key);
+                    }
+                });
+            }
+        }
+    } catch (err) {
+        console.error("Error checking HP reminder:", err);
+        await client.users.cache.get(config.owner)?.send(`Error checking HP reminder for mob channel ${mob_line.collectionName} (${mob_line.id}): ${err}`);
+    }
+}
+
+async function sendHpReminder(reminder: BossHpReminder, mob: Mob, mob_line: MobChannel) {
+    try {
+        const channel = client.channels.cache.get(reminder.channel_id) as TextChannel | NewsChannel;
+
+        if (!channel || !channel.isTextBased()) {
+            console.error(`Channel not found or is not text-based: ${reminder.channel_id}`);
+            return;
+        }
+
+        const role_mention = reminder.role_id ? ` ${reminder.role_id}` : '';
+        const hp_bar = generateHpBar(mob_line.last_hp);
+
+        const container = new ContainerBuilder();
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder()
+                .setContent(`### ${role_mention} - ${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`)
+        )
+        container.addSeparatorComponents(
+            new SeparatorBuilder()
+                .setDivider(true)
+                .setSpacing(SeparatorSpacingSize.Small)
+        )
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder()
+                .setContent(`## HP: ${hp_bar}`)
+        )
+        container.addSeparatorComponents(
+            new SeparatorBuilder()
+                .setDivider(true)
+                .setSpacing(SeparatorSpacingSize.Small)
+        )
+
+        const msg = await channel.send(
+            {
+                components: [container],
+                flags: [MessageFlags.IsComponentsV2]
+            }
+        )
+
+        return msg;
+
+        // await channel.send(`**${mob.name}** in **Line ${mob_line.channel_number}** is now at **${mob_line.last_hp}% HP**!${role_mention}`);
+        // console.log(`Sent HP reminder for ${mob.name} in channel ${channel.id} at ${mob_line.last_hp}% HP.`);
+    } catch (err) {
+        console.error("Error sending HP reminder:", err);
+        await client.users.cache.get(config.owner)?.send(`Error sending HP reminder for mob ${mob.name} in channel ${reminder.channel_id}: ${err}`);
+    }
+}
+
+async function updateMsg(msg: Message, reminder: BossHpReminder, mob: Mob, mob_line: MobChannel, dead: boolean = false) {
+    try {
+        const role_mention = reminder.role_id ? ` ${reminder.role_id}` : '';
+        const hp_bar = generateHpBar(mob_line.last_hp);
+        
+        let header_content: string;
+        let hp_bar_content : string;
+
+        if (dead) {
+            header_content = `### ${role_mention} - ${mob.name} - Line ${mob_line.channel_number} - Dead`
+            hp_bar_content = `## HP: ${hp_bar}`;
+        } else {
+            header_content = `### ${role_mention} - ${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`;
+            hp_bar_content = `## HP: ${hp_bar}`;
+        }
+        
+        const container = new ContainerBuilder();
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder()
+                .setContent(header_content)
+        )
+
+        container.addSeparatorComponents(
+            new SeparatorBuilder()
+                .setDivider(true)
+                .setSpacing(SeparatorSpacingSize.Small)
+        )
+
+        container.addTextDisplayComponents(
+            new TextDisplayBuilder()
+                .setContent(hp_bar_content)
+        )
+
+        container.addSeparatorComponents(
+            new SeparatorBuilder()
+                .setDivider(true)
+                .setSpacing(SeparatorSpacingSize.Small)
+        )
+
+        await msg.edit({
+            components: [container],
+            flags: [MessageFlags.IsComponentsV2]
+        })
+    } catch (err) {
+        console.error("Error updating HP reminder message:", err);
+        await client.users.cache.get(config.owner)?.send(`Error updating HP reminder message for mob ${mob.name} in channel ${reminder.channel_id}: ${err}`);
+    }
+}
+
+function generateHpBar(hp: number): string {
+    const filled_blocks = Math.ceil((hp / 100) * 10);
+    const empty_blocks = 10 - filled_blocks;
+    let color = '🟩';
+    if (hp < 50 && hp >= 25) color = '🟨';
+    if (hp < 25) color = '🟧';
+    if (hp === 0) return '🟥'.repeat(10);
+    return color.repeat(filled_blocks) + '⬛'.repeat(empty_blocks);
 }

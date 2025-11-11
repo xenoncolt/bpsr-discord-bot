@@ -23,3 +23,18 @@ export async function createReminderDB() {
     return db;
 }
 
+export async function createBossReminderDB() {
+    const db = await reminderDB();
+    await db.exec(`
+        CREATE TABLE IF NOT EXISTS boss_hp_reminder (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            mob_id TEXT NOT NULL,
+            mob_name TEXT NOT NULL,
+            guild_id TEXT NOT NULL,
+            channel_id TEXT NOT NULL,
+            role_id TEXT,
+            hp_percent INTEGER NOT NULL
+        )
+    `);
+    return db;
+}

@@ -18,3 +18,13 @@ export interface MobChannel {
     last_update: string;
     mob: string;
 }
+
+export interface BossHpReminder {
+    id: number;
+    mob_id: string;
+    mob_name: string;
+    guild_id: string;
+    channel_id: string;
+    role_id?: string;
+    hp_percent: number;
+}

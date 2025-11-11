@@ -27,7 +27,7 @@ stReminder(client);
 client.once(Events.ClientReady, async () => {
     console.log(`Loading slash cmds for ${client.user?.tag}`);
     await registerSlashCommands(client);
-    await initBossTracker();
+    await initBossTracker(client);
 });
 
 client.on(Events.Debug, (info) => {
