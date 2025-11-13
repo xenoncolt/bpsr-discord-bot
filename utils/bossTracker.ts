@@ -109,6 +109,8 @@ export function getBossLines(mob_id: string): MobChannel[] {
     );
 }
 
+
+
 // which boss spawn time has 0 they will be spawn in 12:00, 1:00, 2:00 etc (every hour)
 // which boss spawn time has 30 they will be spawn in 12:30, 1:30, 2:30 etc (every hour)
 // return unix timestamp
@@ -124,11 +126,15 @@ export function getNextSpawnTime(mob: Mob): number {
     }
 } 
 
+
+
 export async function stopBossTracking() {
     pb.collection('mob_channel_status').unsubscribe();
     pb.collection('mobs').unsubscribe();
     console.log("Unsubscribed from PocketBase collections.");
 }
+
+
 
 async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
     try {
@@ -160,28 +166,73 @@ async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
                 const exist_msg = hp_msg.get(msg_key);
 
                 if (exist_msg) {
-                    await updateMsg(exist_msg, reminder, mob, mob_line);
+                    try {
+                        await updateMsg(exist_msg, reminder, mob, mob_line);
+                    } catch (err) {
+                        hp_msg.delete(msg_key);
+                        try {
+                            if (exist_msg.deletable) {
+                                await exist_msg.delete();
+                            }
+                        } catch (e) {
+                            console.log("Error while deleting failed msg update:", e);
+                        }
+                        console.error("Failed to update the msg and removing from cache", err);
+                    }
                     // console.log(`Updated HP reminder message for ${mob.name} in Line ${mob_line.channel_number} at ${current_hp}% HP.`);
                 } else if (!sentNuke.has(nuke_key)) {
                     const sent_msg = await sendHpReminder(reminder, mob, mob_line);
                     if (sent_msg) {
                         hp_msg.set(msg_key, sent_msg);
+                        sentNuke.add(nuke_key);
                     }
                     // console.log(`Sent HP reminder for ${mob.name} in Line ${mob_line.channel_number} at ${current_hp}% HP.`);
-                    sentNuke.add(nuke_key);
+                    
 
-                    setTimeout(() => {
+                    setTimeout(async () => {
                         sentNuke.delete(nuke_key);
-                    }, 5 * 60 * 1000)
+                    }, 10 * 60 * 1000)
                 }
             }
             
-            if ((current_hp === 100 && pre_hp < 100) || current_hp === 0) {
+            if ((current_hp === 100 && pre_hp < 100 ) || current_hp === 0) {
                 const exist_msg = hp_msg.get(msg_key);
 
-                if (exist_msg && current_hp === 0) {
-                    await updateMsg(exist_msg, reminder, mob, mob_line, true);
-                    // console.log(`Updated HP reminder message for ${mob.name} in Line ${mob_line.channel_number} to Dead.`);
+                if (exist_msg ) {
+                    if (current_hp === 0) {
+                        try {
+                            await updateMsg(exist_msg, reminder, mob, mob_line, true);
+                            // wait 5 min then delete that msg if dead
+                            if (exist_msg.deletable) {
+                                setTimeout(async () => {
+                                    try {
+                                        await exist_msg.delete();
+                                    } catch (err) {
+                                        console.error("Error deleting HP reminder message:", err);
+                                    }
+                                }, 2 * 60 * 1000);
+                            } else {
+                                exist_msg.edit({ content: `${exist_msg.content}\n(Note: I don't have permission to delete this message.) Please add me again to server or give me \`Manage Messages\` permission` });
+                            }
+                        } catch (err) {
+                            console.error("Error updating dead HP reminder message:", err);
+                            try {
+                                if (exist_msg.deletable) {
+                                    await exist_msg.delete();
+                                }
+                            } catch (e) {
+                                console.error("Error deleting dead HP reminder message after failed update:", e);
+                            }
+                        }
+                    } else {
+                        try {
+                            if (exist_msg.deletable) {
+                                await exist_msg.delete();
+                            }
+                        }catch (err) {
+                            console.error("Error deleting full HP reminder message:", err);
+                        }
+                    }
                 }
 
                 hp_msg.delete(msg_key);
@@ -248,6 +299,8 @@ async function sendHpReminder(reminder: BossHpReminder, mob: Mob, mob_line: MobC
     }
 }
 
+
+
 async function updateMsg(msg: Message, reminder: BossHpReminder, mob: Mob, mob_line: MobChannel, dead: boolean = false) {
     try {
         const role_mention = reminder.role_id ? ` ${reminder.role_id} - ` : '';
@@ -291,20 +344,20 @@ async function updateMsg(msg: Message, reminder: BossHpReminder, mob: Mob, mob_l
             components: [container],
             flags: [MessageFlags.IsComponentsV2]
         })
-        // wait 5 min then delete that msg if dead
-        if (dead) {
-            if (msg.deletable) {
-                setTimeout(async () => {
-                    try {
-                        await msg.delete();
-                    } catch (err) {
-                        console.error("Error deleting HP reminder message:", err);
-                    }
-                }, 2 * 60 * 1000);
-            } else {
-                msg.edit({ content: `${msg.content}\n(Note: I don't have permission to delete this message.) Please add me again to server or give me \`Manage Messages\` permission` });
-            }
-        }
+        // // wait 5 min then delete that msg if dead
+        // if (dead) {
+        //     if (msg.deletable) {
+        //         setTimeout(async () => {
+        //             try {
+        //                 await msg.delete();
+        //             } catch (err) {
+        //                 console.error("Error deleting HP reminder message:", err);
+        //             }
+        //         }, 2 * 60 * 1000);
+        //     } else {
+        //         msg.edit({ content: `${msg.content}\n(Note: I don't have permission to delete this message.) Please add me again to server or give me \`Manage Messages\` permission` });
+        //     }
+        // }
     } catch (err) {
         console.error("Error updating HP reminder message:", err);
         await client.users.cache.get(config.owner)?.send(`Error updating HP reminder message for mob ${mob.name} in channel ${reminder.channel_id}: ${err}`);
