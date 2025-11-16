@@ -6,7 +6,7 @@ Welcome to BPSR Info Bot. By adding or using this Discord bot, you agree to the 
 
 ## 1. Description of Service
 
-BPSR Info Bot is a Discord application designed for Black Desert Online players that provides the following services:
+BPSR Info Bot is a Discord application designed for Blue Protocol Star Resonance players that provides the following services:
 
 - Real-time boss spawn tracking and notifications
 - Boss HP monitoring across multiple game channels
