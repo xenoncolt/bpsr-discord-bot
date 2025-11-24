@@ -15,6 +15,9 @@ const boss_hp_reminder_db = await createBossReminderDB();
 const sentNuke = new Set<string>();
 const hp_msg = new Map<string, Message>();
 
+const msg_timestamp = new Map<string, number>();
+const cleanup_timeouts = new Map<string, NodeJS.Timeout>();
+
 let mobs_cache: Map<string, Mob> = new Map();
 let mob_channel_cache: Map<string, MobChannel> = new Map();
 
@@ -34,6 +37,8 @@ export async function initBossTracker(_client: Client) {
         console.log(`Cached ${mob_channel_cache.size} mob channels.`);
         
         await subsToApi();
+
+        startMsgCleanup();
     } catch (err) {
         console.error("Error initializing Boss Tracker:", err);
         throw err;
@@ -132,6 +137,9 @@ export async function stopBossTracking() {
     pb.collection('mob_channel_status').unsubscribe();
     pb.collection('mobs').unsubscribe();
     console.log("Unsubscribed from PocketBase collections.");
+
+    cleanup_timeouts.forEach(timeout => clearTimeout(timeout));
+    cleanup_timeouts.clear();
 }
 
 
@@ -168,8 +176,16 @@ async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
                 if (exist_msg) {
                     try {
                         await updateMsg(exist_msg, reminder, mob, mob_line);
+
+                        msg_timestamp.set(msg_key, Date.now());
                     } catch (err) {
                         hp_msg.delete(msg_key);
+                        msg_timestamp.delete(msg_key);
+                        const timeout = cleanup_timeouts.get(msg_key);
+                        if (timeout) {
+                            clearTimeout(timeout);
+                            cleanup_timeouts.delete(msg_key);
+                        }
                         try {
                             if (exist_msg.deletable) {
                                 await exist_msg.delete();
@@ -184,6 +200,8 @@ async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
                     const sent_msg = await sendHpReminder(reminder, mob, mob_line);
                     if (sent_msg) {
                         hp_msg.set(msg_key, sent_msg);
+                        msg_timestamp.set(msg_key, Date.now());
+                        scheduleMsgExpire(msg_key, sent_msg);
                         sentNuke.add(nuke_key);
                     }
                     // console.log(`Sent HP reminder for ${mob.name} in Line ${mob_line.channel_number} at ${current_hp}% HP.`);
@@ -236,6 +254,12 @@ async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
                 }
 
                 hp_msg.delete(msg_key);
+                msg_timestamp.delete(msg_key);
+                const timeout = cleanup_timeouts.get(msg_key);
+                if (timeout) {
+                    clearTimeout(timeout);
+                    cleanup_timeouts.delete(msg_key);
+                }
 
                 Array.from(sentNuke).forEach( key => {
                     if (key.startsWith(`${reminder.id}_${mob_line.channel_number}_`)) {
@@ -256,6 +280,7 @@ async function sendHpReminder(reminder: BossHpReminder, mob: Mob, mob_line: MobC
 
         if (!channel || !channel.isTextBased()) {
             console.error(`Channel not found or is not text-based: ${reminder.channel_id}`);
+            await boss_hp_reminder_db.run('DELETE FROM boss_hp_reminder WHERE id = ?', reminder.id);
             return;
         }
 
@@ -372,4 +397,66 @@ function generateHpBar(hp: number): string {
     if (hp < 25) color = '🟧';
     if (hp === 0) return '🟥'.repeat(12);
     return color.repeat(filled_blocks) + '⬛'.repeat(empty_blocks);
+}
+
+function startMsgCleanup() {
+    setInterval(async () => {
+        const now = Date.now();
+        const stale_msg: string[] = [];
+
+        msg_timestamp.forEach((time, msg_key) => {
+            if (now - time > 30 * 60 * 1000) {
+                stale_msg.push(msg_key);
+            }
+        });
+
+        for (const msg_key of stale_msg) {
+            const msg = hp_msg.get(msg_key);
+            if (msg) {
+                try {
+                    if (msg.deletable) {
+                        await msg.delete();
+                    }
+                } catch (err) {
+                    console.error("Error deleting HP reminder message:", err);
+                }
+            }
+
+            hp_msg.delete(msg_key);
+            msg_timestamp.delete(msg_key);
+            
+            const timeout = cleanup_timeouts.get(msg_key);
+            if (timeout) {
+                clearTimeout(timeout);
+                cleanup_timeouts.delete(msg_key);
+            }
+        }
+
+        if (stale_msg.length > 0) {
+            console.log(`cleaned up ${stale_msg.length} msgs`);
+        }
+    }, 5 * 60 * 1000);
+}
+
+function scheduleMsgExpire(msg_key: string, msg: Message) {
+    const existing_timeout = cleanup_timeouts.get(msg_key);
+    if (existing_timeout) {
+        clearTimeout(existing_timeout);
+    }
+
+    const timeout = setTimeout(async () => {
+        try {
+            if (msg.deletable) {
+                await msg.delete();
+            }
+        } catch (err) {
+            console.error("Error deleting HP reminder message:", err);
+        }
+
+        hp_msg.delete(msg_key);
+        msg_timestamp.delete(msg_key);
+        cleanup_timeouts.delete(msg_key);
+    }, 30 * 60 * 1000);
+
+    cleanup_timeouts.set(msg_key, timeout);
 }

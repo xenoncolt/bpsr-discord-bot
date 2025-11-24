@@ -55,28 +55,10 @@ export default {
                                     .setDescription('Get reminder when boss HP is between 0 to less than 100% (recommended)')
                                     .setEmoji('🐻'),
                                 new StringSelectMenuOptionBuilder()
-                                    .setLabel("Less than 90%")
-                                    .setValue('90')
+                                    .setLabel("Less than 75%")
+                                    .setValue('75')
                                     .setDefault(false)
-                                    .setDescription('Get reminder when boss HP is between 0 to less than 90%')
-                                    .setEmoji('🐻'),
-                                new StringSelectMenuOptionBuilder()
-                                    .setLabel("Less than 80%")
-                                    .setValue('80')
-                                    .setDefault(false)
-                                    .setDescription('Get reminder when boss HP is between 0 to less than 80%')
-                                    .setEmoji('🐻'),
-                                new StringSelectMenuOptionBuilder()
-                                    .setLabel("Less than 70%")
-                                    .setValue('70')
-                                    .setDefault(false)
-                                    .setDescription('Get reminder when boss HP is between 0 to less than 70%')
-                                    .setEmoji('🐻'),
-                                new StringSelectMenuOptionBuilder()
-                                    .setLabel("Less than 60%")
-                                    .setValue('60')
-                                    .setDefault(false)
-                                    .setDescription('Get reminder when boss HP is between 0 to less than 60%')
+                                    .setDescription('Get reminder when boss HP is between 0 to less than 75%')
                                     .setEmoji('🐻'),
                                 new StringSelectMenuOptionBuilder()
                                     .setLabel("Less than 50%")
