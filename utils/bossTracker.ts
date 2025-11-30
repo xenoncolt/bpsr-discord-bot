@@ -179,19 +179,20 @@ async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
 
                         msg_timestamp.set(msg_key, Date.now());
                     } catch (err) {
-                        hp_msg.delete(msg_key);
-                        msg_timestamp.delete(msg_key);
-                        const timeout = cleanup_timeouts.get(msg_key);
-                        if (timeout) {
-                            clearTimeout(timeout);
-                            cleanup_timeouts.delete(msg_key);
-                        }
                         try {
                             if (exist_msg.deletable) {
                                 await exist_msg.delete();
                             }
                         } catch (e) {
                             console.log("Error while deleting failed msg update:", e);
+                        }
+
+                        hp_msg.delete(msg_key);
+                        msg_timestamp.delete(msg_key);
+                        const timeout = cleanup_timeouts.get(msg_key);
+                        if (timeout) {
+                            clearTimeout(timeout);
+                            cleanup_timeouts.delete(msg_key);
                         }
                         console.error("Failed to update the msg and removing from cache", err);
                     }
@@ -221,22 +222,35 @@ async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
                         try {
                             await updateMsg(exist_msg, reminder, mob, mob_line, true);
                             // wait 5 min then delete that msg if dead
-                            if (exist_msg.deletable) {
-                                setTimeout(async () => {
-                                    try {
+                            setTimeout(async () => {
+                                try {
+                                    if (hp_msg.get(msg_key) === exist_msg && exist_msg.deletable) {
                                         await exist_msg.delete();
-                                    } catch (err) {
-                                        console.error("Error deleting HP reminder message:", err);
                                     }
-                                }, 2 * 60 * 1000);
-                            } else {
-                                exist_msg.edit({ content: `${exist_msg.content}\n(Note: I don't have permission to delete this message.) Please add me again to server or give me \`Manage Messages\` permission` });
-                            }
+                                } catch (err) {
+                                    console.error("Error deleting dead message:", err);
+                                }
+
+                                hp_msg.delete(msg_key);
+                                msg_timestamp.delete(msg_key);
+                                const timeout = cleanup_timeouts.get(msg_key);
+                                if (timeout) {
+                                    clearTimeout(timeout);
+                                    cleanup_timeouts.delete(msg_key);
+                                }
+                            }, 2 * 60 * 1000);
                         } catch (err) {
                             console.error("Error updating dead HP reminder message:", err);
                             try {
                                 if (exist_msg.deletable) {
                                     await exist_msg.delete();
+                                }
+                                hp_msg.delete(msg_key);
+                                msg_timestamp.delete(msg_key);
+                                const timeout = cleanup_timeouts.get(msg_key);
+                                if (timeout) {
+                                    clearTimeout(timeout);
+                                    cleanup_timeouts.delete(msg_key);
                                 }
                             } catch (e) {
                                 console.error("Error deleting dead HP reminder message after failed update:", e);
@@ -246,6 +260,13 @@ async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
                         try {
                             if (exist_msg.deletable) {
                                 await exist_msg.delete();
+                            }
+                            hp_msg.delete(msg_key);
+                            msg_timestamp.delete(msg_key);
+                            const timeout = cleanup_timeouts.get(msg_key);
+                            if (timeout) {
+                                clearTimeout(timeout);
+                                cleanup_timeouts.delete(msg_key);
                             }
                         }catch (err) {
                             console.error("Error deleting full HP reminder message:", err);
@@ -275,7 +296,7 @@ async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
 }
 
 async function sendHpReminder(reminder: BossHpReminder, mob: Mob, mob_line: MobChannel) {
-    try {
+    // try {
         const channel = client.channels.cache.get(reminder.channel_id) as TextChannel | NewsChannel;
 
         if (!channel || !channel.isTextBased()) {
@@ -318,10 +339,10 @@ async function sendHpReminder(reminder: BossHpReminder, mob: Mob, mob_line: MobC
 
         // await channel.send(`**${mob.name}** in **Line ${mob_line.channel_number}** is now at **${mob_line.last_hp}% HP**!${role_mention}`);
         // console.log(`Sent HP reminder for ${mob.name} in channel ${channel.id} at ${mob_line.last_hp}% HP.`);
-    } catch (err) {
-        console.error("Error sending HP reminder:", err);
-        await client.users.cache.get(config.owner)?.send(`Error sending HP reminder for mob ${mob.name} in channel ${reminder.channel_id}: ${err}`);
-    }
+    // } catch (err) {
+    //     console.error("Error sending HP reminder:", err);
+    //     await client.users.cache.get(config.owner)?.send(`Error sending HP reminder for mob ${mob.name} in channel ${reminder.channel_id}: ${err}`);
+    // }
 }
 
 
@@ -385,7 +406,7 @@ async function updateMsg(msg: Message, reminder: BossHpReminder, mob: Mob, mob_l
         // }
     } catch (err) {
         console.error("Error updating HP reminder message:", err);
-        await client.users.cache.get(config.owner)?.send(`Error updating HP reminder message for mob ${mob.name} in channel ${reminder.channel_id}: ${err}`);
+        // await client.users.cache.get(config.owner)?.send(`Error updating HP reminder message for mob ${mob.name} in channel ${reminder.channel_id}: ${err}`);
     }
 }
 
