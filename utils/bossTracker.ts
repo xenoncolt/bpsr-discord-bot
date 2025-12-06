@@ -1,6 +1,7 @@
 import PocketBase from 'pocketbase';
 import { EventSource } from 'eventsource';
 import config from "../config.json" with { type: "json" };
+import pak from "../package.json" with { type: "json" };
 import { BossHpReminder, Mob, MobChannel } from '../types/bossData.js';
 import { createBossReminderDB } from '../schema/reminderDB.js';
 import { Client, ContainerBuilder, GuildMember, Message, MessageFlags, NewsChannel, SeparatorBuilder, SeparatorSpacingSize, TextChannel, TextDisplayBuilder } from 'discord.js';
@@ -8,6 +9,14 @@ import { Client, ContainerBuilder, GuildMember, Message, MessageFlags, NewsChann
 global.EventSource = EventSource;
 
 const pb = new PocketBase(config.bptimer_api_url);
+
+pb.send = async <T = any>(path: string, options: any = {}) => {
+    options.headers = {
+        ...(options.headers || {}),
+        "User-Agent": `BPSR-Discord-Bot/${pak.version}`
+    };
+    return PocketBase.prototype.send.call(pb, path, options) as Promise<T>;
+}
 
 let client: Client;
 
