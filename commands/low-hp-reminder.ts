@@ -2,6 +2,7 @@ import { APITextInputComponent, ApplicationCommandOptionType, ChannelSelectMenuB
 import { Command } from "../types/Command.js";
 import { getBossById, getBossNameId } from "../utils/bossTracker.js";
 import { createBossReminderDB } from "../schema/reminderDB.js";
+import { Region } from "../types/bossData.js";
 
 let boss_id: string;
 const hp_boss_reminder_db = await createBossReminderDB();
@@ -39,6 +40,29 @@ export default {
             .setCustomId('low-hp-reminder')
             .setTitle(`Low HP Reminder Setup For ${getBossById(boss_id)?.name}`)
             .addLabelComponents(
+                new LabelBuilder()
+                    .setLabel('Select the region: ')
+                    .setDescription('Choose which region (NA or SEA) you want to receive reminders for.')
+                    .setStringSelectMenuComponent(
+                        new StringSelectMenuBuilder()
+                            .setCustomId('region')
+                            .setPlaceholder('Select Region...')
+                            .setRequired(true)
+                            .addOptions(
+                                new StringSelectMenuOptionBuilder()
+                                    .setLabel("NA (North America)")
+                                    .setValue('NA')
+                                    .setDefault(true)
+                                    .setDescription('Get reminders for NA server')
+                                    .setEmoji('🌎'),
+                                new StringSelectMenuOptionBuilder()
+                                    .setLabel("SEA (Southeast Asia)")
+                                    .setValue('SEA')
+                                    .setDefault(false)
+                                    .setDescription('Get reminders for SEA server')
+                                    .setEmoji('🌏')
+                            )
+                    ),
                 new LabelBuilder()
                     .setLabel('Select the HP percentage: ')
                     .setDescription('Set the HP percentage at which you want to receive a reminder for the boss.')
@@ -104,6 +128,7 @@ export default {
         );
     },
     async modalSubmit(interaction) {
+        const region = interaction.fields.getStringSelectValues('region')[0] as Region;
         const hp_percent = interaction.fields.getStringSelectValues('hp_percent')[0];
         const channel = interaction.fields.getSelectedChannels('boss_hp_channel')?.first();
         const roles = interaction.fields.getSelectedRoles('boss_hp_role');
@@ -125,10 +150,10 @@ export default {
         }
 
         await hp_boss_reminder_db.run(`
-            INSERT INTO boss_hp_reminder (mob_id, mob_name, guild_id, channel_id, role_id, hp_percent) VALUES (?, ?, ?, ?, ?, ?)`,
-            boss_id, boss?.name, interaction.guild?.id, channel?.id, filtered_roles, hp_percent
+            INSERT INTO boss_hp_reminder (mob_id, mob_name, guild_id, channel_id, role_id, hp_percent, region) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+            boss_id, boss?.name, interaction.guild?.id, channel?.id, filtered_roles, hp_percent, region
         );
 
-        await interaction.reply({ content: `Low HP reminder for boss **${boss?.name}** has been set up successfully! You will receive a reminder in ${channel} when the boss's HP drops below ${hp_percent}%.`, flags: MessageFlags.Ephemeral});
+        await interaction.reply({ content: `Low HP reminder for boss **${boss?.name}** (${region}) has been set up successfully! You will receive a reminder in ${channel} when the boss's HP drops below ${hp_percent}%.`, flags: MessageFlags.Ephemeral});
     }
 } as Command;

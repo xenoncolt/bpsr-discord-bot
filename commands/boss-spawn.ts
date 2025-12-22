@@ -1,7 +1,7 @@
 import { ApplicationCommandOptionType, AttachmentBuilder, ContainerBuilder, ContainerComponent, MediaGalleryBuilder, MediaGalleryItemBuilder, MessageFlags, SectionBuilder, SeparatorBuilder, SeparatorSpacingSize, TextDisplayBuilder, TextDisplayComponent, ThumbnailBuilder } from "discord.js";
 import { Command } from "../types/Command";
 import { getBossById, getBossLines, getBossNameId, getNextSpawnTime } from "../utils/bossTracker.js";
-import { Mob } from "../types/bossData";
+import { Mob, Region } from "../types/bossData";
 import { join } from "path";
 import { existsSync, readdirSync } from "fs";
 import config from "../config.json" with { type: "json" };
@@ -12,7 +12,7 @@ const MAP_IMG_FOLDER = join(process.cwd(), 'img', 'maps');
 export default {
     name: "boss-spawn",
     description:"Get boss spawn location and time",
-    cooldown: 60,
+    cooldown: 5,
     options: [
         {
             type: ApplicationCommandOptionType.String,
@@ -20,10 +20,21 @@ export default {
             description: "Name of the boss to get spawn info",
             required: true,
             autocomplete: true
+        },
+        {
+            type: ApplicationCommandOptionType.String,
+            name: "region",
+            description: "Server region (NA or SEA)",
+            required: true,
+            choices: [
+                { name: "NA (North America)", value: "NA" },
+                { name: "SEA (Southeast Asia)", value: "SEA" }
+            ]
         }
     ],
     async execute(interaction) {
         const bossName = interaction.options.getString('boss_name') as string;
+        const region = (interaction.options.getString('region') || 'NA') as Region;
 
         const owner = interaction.client.users.cache.get(config.owner);
 
@@ -60,7 +71,7 @@ export default {
             new SectionBuilder()
                 .addTextDisplayComponents(
                     new TextDisplayBuilder()
-                        .setContent(`# ${bossData.name}`)
+                        .setContent(`# ${bossData.name} (${region})`)
                 )
                 .addTextDisplayComponents(
                     new TextDisplayBuilder()
@@ -78,7 +89,7 @@ export default {
         );
 
         // line
-        const boss_lines = getBossLines(bossData.id);
+        const boss_lines = getBossLines(bossData.id, region);
         // const alive_line_txt = alive_lines.map( line => 
         //     `\`${line.channel_number}\``
         // ).join(' ') || "No alive spawn detected.";

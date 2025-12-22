@@ -2,7 +2,7 @@ import PocketBase from 'pocketbase';
 import { EventSource } from 'eventsource';
 import config from "../config.json" with { type: "json" };
 import pak from "../package.json" with { type: "json" };
-import { BossHpReminder, Mob, MobChannel } from '../types/bossData.js';
+import { BossHpReminder, Mob, MobChannel, Region } from '../types/bossData.js';
 import { createBossReminderDB } from '../schema/reminderDB.js';
 import { Client, ContainerBuilder, GuildMember, Message, MessageFlags, NewsChannel, SeparatorBuilder, SeparatorSpacingSize, TextChannel, TextDisplayBuilder } from 'discord.js';
 
@@ -28,7 +28,8 @@ const msg_timestamp = new Map<string, number>();
 const cleanup_timeouts = new Map<string, NodeJS.Timeout>();
 
 let mobs_cache: Map<string, Mob> = new Map();
-let mob_channel_cache: Map<string, MobChannel> = new Map();
+let mob_channel_cache_na: Map<string, MobChannel> = new Map();
+let mob_channel_cache_sea: Map<string, MobChannel> = new Map();
 
 export async function initBossTracker(_client: Client) {
     console.log("Started Tracker...");
@@ -38,12 +39,21 @@ export async function initBossTracker(_client: Client) {
     try {
         const mobs = await pb.collection('mobs').getFullList<Mob>();
         mobs.forEach(mob => mobs_cache.set(mob.id, mob));
-
         console.log(`Cached ${mobs_cache.size} mobs.`);
 
         const mobChannels = await pb.collection('mob_channel_status').getFullList<MobChannel>();
-        mobChannels.forEach( mc => mob_channel_cache.set(mc.id, mc));
-        console.log(`Cached ${mob_channel_cache.size} mob channels.`);
+        
+        mobChannels.forEach(mc => {
+            const cache_key = `${mc.mob}_${mc.channel_number}`;
+            if (mc.region === 'NA') {
+                mob_channel_cache_na.set(cache_key, mc);
+            } else if (mc.region === 'SEA') {
+                mob_channel_cache_sea.set(cache_key, mc);
+            }
+        });
+        
+        console.log(`Cached ${mob_channel_cache_na.size} NA mob channels.`);
+        console.log(`Cached ${mob_channel_cache_sea.size} SEA mob channels.`);
         
         await subsToApi();
 
@@ -54,36 +64,101 @@ export async function initBossTracker(_client: Client) {
     }
 }
 
+// get the correct cache based on region
+function getMobChannelCache(region: Region): Map<string, MobChannel> {
+    return region === 'NA' ? mob_channel_cache_na : mob_channel_cache_sea;
+}
+
 async function subsToApi() {
-    pb.collection('mob_channel_status').subscribe('*', async (e) => {
-        const mobChannel = e.record as MobChannel;
+    pb.realtime.subscribe('mob_hp_updates', async (data) => {
+        const updates = typeof data === 'string' ? JSON.parse(data) : data;
+        // console.log(`[NA] Received ${updates.length} HP updates`);
+        await handleHpUpdates(updates, 'NA');
+    });
 
-        if (e.action === 'create' || e.action === 'update') {
-            const old_status = mob_channel_cache.get(mobChannel.id);
-            mob_channel_cache.set(mobChannel.id, mobChannel);
-            // console.log(`Mob Channel updated: ${mobChannel.collectionName} (${mobChannel.id})`);
+    pb.realtime.subscribe('mob_hp_updates_sea', async (data) => {
+        const updates = typeof data === 'string' ? JSON.parse(data) : data;
+        // console.log(`[SEA] Received ${updates.length} HP updates`);
+        await handleHpUpdates(updates, 'SEA');
+    });
 
-            if (old_status && old_status.last_hp !== mobChannel.last_hp) {
-                await checkHpReminder(mobChannel, old_status);
-                // console.log(`Mob Channel HP changed: ${mobChannel.collectionName} (${mobChannel.id}) from ${old_status.last_hp}% to ${mobChannel.last_hp}%`);
-            }
-        } else if (e.action === 'delete') {
-            mob_channel_cache.delete(mobChannel.id);
-        }
+    pb.realtime.subscribe('mob_resets', async (data) => {
+        const mobIds = typeof data === 'string' ? JSON.parse(data) : data;
+        // console.log(`[NA] Received reset for ${mobIds.length} mobs`);
+        await handleMobResets(mobIds, 'NA');
+    });
+
+    pb.realtime.subscribe('mob_resets_sea', async (data) => {
+        const mobIds = typeof data === 'string' ? JSON.parse(data) : data;
+        // console.log(`[SEA] Received reset for ${mobIds.length} mobs`);
+        await handleMobResets(mobIds, 'SEA');
     });
 
     pb.collection('mobs').subscribe('*', (e) => {
         const mob = e.record as Mob;
+        // console.log(`[MOBS] ${e.action} event for mob: ${mob.name}`);
 
         if (e.action === 'create' || e.action === 'update') {
             mobs_cache.set(mob.id, mob);
-            // console.log(`Mob updated: ${mob.name} (${mob.id})`);
         } else if (e.action === 'delete') {
             mobs_cache.delete(mob.id);
         }
     });
+}
 
-    console.log("subscribed to PocketBase collections.");
+async function handleHpUpdates(updates: any[], region: Region) {
+    const cache = getMobChannelCache(region);
+
+    for (const update of updates) {
+        const [mob_id, channel_number, hp_percentage, location_image] = update;
+        const cache_key = `${mob_id}_${channel_number}`;
+
+        const old_status = cache.get(cache_key);
+        const mob = mobs_cache.get(mob_id);
+        
+        const new_status: MobChannel = {
+            channel_number,
+            collectionId: '',
+            collectionName: 'mob_channel_status',
+            id: cache_key,
+            last_hp: hp_percentage,
+            last_update: new Date().toISOString(),
+            mob: mob_id,
+            region,
+            location_image: location_image ?? undefined
+        };
+
+        cache.set(cache_key, new_status);
+
+        if (old_status && old_status.last_hp !== hp_percentage) {
+            // console.log(`[${region}] HP changed for ${mob?.name || mob_id} Line ${channel_number}: ${old_status.last_hp}% -> ${hp_percentage}%`);
+            await checkHpReminder(new_status, old_status, region);
+        } else if (!old_status && hp_percentage < 100) {
+            // console.log(`[${region}] New entry for ${mob?.name || mob_id} Line ${channel_number} at ${hp_percentage}%`);
+            const fake_old: MobChannel = { ...new_status, last_hp: 100 };
+            await checkHpReminder(new_status, fake_old, region);
+        }
+    }
+}
+
+async function handleMobResets(mob_ids: string[], region: Region) {
+    const cache = getMobChannelCache(region);
+
+    for (const mob_id of mob_ids) {
+        const mob = mobs_cache.get(mob_id);
+        // console.log(`[${region}] Resetting mob: ${mob?.name || mob_id}`);
+        
+        cache.forEach((mc, key) => {
+            if (mc.mob === mob_id) {
+                const old_status = { ...mc };
+                mc.last_hp = 100;
+                mc.last_update = new Date().toISOString();
+                cache.set(key, mc);
+
+                checkHpReminder(mc, old_status, region);
+            }
+        });
+    }
 }
 
 export function getAllBoss(): Mob[] {
@@ -117,8 +192,9 @@ export function getBossById(mob_id: string): Mob | undefined {
 //     );
 // }
 
-export function getBossLines(mob_id: string): MobChannel[] {
-    return Array.from(mob_channel_cache.values()).filter(
+export function getBossLines(mob_id: string, region: Region = 'NA'): MobChannel[] {
+    const cache = getMobChannelCache(region);
+    return Array.from(cache.values()).filter(
         mc => mc.mob === mob_id
     );
 }
@@ -143,9 +219,12 @@ export function getNextSpawnTime(mob: Mob): number {
 
 
 export async function stopBossTracking() {
-    pb.collection('mob_channel_status').unsubscribe();
+    pb.realtime.unsubscribe('mob_hp_updates');
+    pb.realtime.unsubscribe('mob_hp_updates_sea');
+    pb.realtime.unsubscribe('mob_resets');
+    pb.realtime.unsubscribe('mob_resets_sea');
     pb.collection('mobs').unsubscribe();
-    console.log("Unsubscribed from PocketBase collections.");
+    console.log("Unsubscribed from SSE topics and PocketBase collections.");
 
     cleanup_timeouts.forEach(timeout => clearTimeout(timeout));
     cleanup_timeouts.clear();
@@ -153,10 +232,10 @@ export async function stopBossTracking() {
 
 
 
-async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel) {
+async function checkHpReminder(mob_line: MobChannel, old_status: MobChannel, region: Region) {
     try {
         const boss_reminders = await boss_hp_reminder_db.all<BossHpReminder[]>(`
-            SELECT * FROM boss_hp_reminder WHERE mob_id = ?`, mob_line.mob
+            SELECT * FROM boss_hp_reminder WHERE mob_id = ? AND region = ?`, mob_line.mob, region
         );
 
         const mob = mobs_cache.get(mob_line.mob);
@@ -316,11 +395,12 @@ async function sendHpReminder(reminder: BossHpReminder, mob: Mob, mob_line: MobC
 
         const role_mention = reminder.role_id ? ` ${reminder.role_id} - ` : '';
         const hp_bar = generateHpBar(mob_line.last_hp);
+        const region_tag = `[${mob_line.region}]`;
 
         const container = new ContainerBuilder();
         container.addTextDisplayComponents(
             new TextDisplayBuilder()
-                .setContent(`${role_mention}${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`)
+                .setContent(`${role_mention}${region_tag} ${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`)
         )
         container.addSeparatorComponents(
             new SeparatorBuilder()
@@ -360,15 +440,16 @@ async function updateMsg(msg: Message, reminder: BossHpReminder, mob: Mob, mob_l
     try {
         const role_mention = reminder.role_id ? ` ${reminder.role_id} - ` : '';
         const hp_bar = generateHpBar(mob_line.last_hp);
+        const region_tag = `[${mob_line.region}]`;
         
         let header_content: string;
         let hp_bar_content : string;
 
         if (dead) {
-            header_content = `${role_mention}${mob.name} - Line ${mob_line.channel_number} - Dead`
+            header_content = `${role_mention}${region_tag} ${mob.name} - Line ${mob_line.channel_number} - Dead`
             hp_bar_content = `HP: ${hp_bar}`;
         } else {
-            header_content = `${role_mention}${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`;
+            header_content = `${role_mention}${region_tag} ${mob.name} - Line ${mob_line.channel_number} - ${mob_line.last_hp}% HP`;
             hp_bar_content = `HP: ${hp_bar}`;
         }
         

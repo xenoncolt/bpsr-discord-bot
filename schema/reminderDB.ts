@@ -33,8 +33,17 @@ export async function createBossReminderDB() {
             guild_id TEXT NOT NULL,
             channel_id TEXT NOT NULL,
             role_id TEXT,
-            hp_percent INTEGER NOT NULL
+            hp_percent INTEGER NOT NULL,
+            region TEXT NOT NULL DEFAULT 'NA'
         )
     `);
+    
+    // Migration: Add region column if it doesn't exist
+    try {
+        await db.exec(`ALTER TABLE boss_hp_reminder ADD COLUMN region TEXT NOT NULL DEFAULT 'NA'`);
+    } catch (e) {
+        // Column already exists, ignore
+    }
+    
     return db;
 }

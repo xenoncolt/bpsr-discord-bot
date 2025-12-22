@@ -84,7 +84,7 @@ export default {
                             .setPlaceholder('Select bosses...')
                             .addOptions(
                                 low_hp_reminderList.map((rem, index )=> ({
-                                    label: `${rem.mob_name} ${interaction.guild?.channels.cache.get(rem.channel_id)?.name}`,
+                                    label: `[${rem.region}] ${rem.mob_name} ${interaction.guild?.channels.cache.get(rem.channel_id)?.name}`,
                                     value: `${rem.mob_id}:${rem.channel_id}${''.padEnd(index, '+')}`
                                 })).slice(0, 25)
                             )
@@ -125,7 +125,7 @@ export default {
                             .setPlaceholder('Select bosses...')
                             .addOptions(
                                 low_hp_reminderList.map((rem, index) => ({
-                                    label: `${rem.mob_name} ${interaction.guild?.channels.cache.get(rem.channel_id)?.name}`,
+                                    label: `[${rem.region}] ${rem.mob_name} ${interaction.guild?.channels.cache.get(rem.channel_id)?.name}`,
                                     value: `${rem.mob_id}:${rem.channel_id}${''.padEnd(index, '+')}`
                                 })).slice(0, 25)
                             )

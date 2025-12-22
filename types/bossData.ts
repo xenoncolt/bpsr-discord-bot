@@ -13,11 +13,18 @@ export interface MobChannel {
     channel_number: number;
     collectionId: string;
     collectionName: string;
-    id : string;
+    id: string;
     last_hp: number;
     last_update: string;
     mob: string;
+    region: 'NA' | 'SEA';
+    location_image?: number | null;
 }
+
+// New realtime update format: [mob_id, channel_number, hp_percentage, location_image]
+export type MobHpUpdate = [string, number, number, number | null];
+
+export type Region = 'NA' | 'SEA';
 
 export interface BossHpReminder {
     id: number;
@@ -27,4 +34,5 @@ export interface BossHpReminder {
     channel_id: string;
     role_id?: string;
     hp_percent: number;
+    region: 'NA' | 'SEA';
 }
