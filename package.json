@@ -1,6 +1,6 @@
 {
   "name": "bpsr-discord-bot",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "A BPSR discord bot to remind players about events guild hunts etc",
   "homepage": "https://github.com/xenoncolt/bpsr-discord-bot#readme",
   "bugs": {
